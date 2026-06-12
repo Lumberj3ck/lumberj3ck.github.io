@@ -1,0 +1,584 @@
+{{- $id := printf "dijkstra-debugger-%d" .Ordinal -}}
+<section id="{{ $id }}" class="dj-debugger" aria-label="Dijkstra step-by-step debugger">
+  <style>
+    #{{ $id }} {
+      --dj-bg: #fff;
+      --dj-panel: #f4f4f4;
+      --dj-panel-soft: rgba(0, 0, 0, 0.035);
+      --dj-text: #222;
+      --dj-muted: #666;
+      --dj-line: #b8b8b8;
+      --dj-accent: #2f7d46;
+      --dj-warn: #b47a00;
+      --dj-blue: #1f6f9f;
+      --dj-node-fill: #fff;
+      --dj-rule: rgba(0, 0, 0, 0.12);
+      margin: 2rem 0;
+      margin-left: calc(50% - 50vw);
+      width: 100vw;
+      color: var(--dj-text);
+      background: transparent;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      #{{ $id }} {
+        --dj-bg: #232425;
+        --dj-panel: #2c2d30;
+        --dj-panel-soft: rgba(255, 255, 255, 0.045);
+        --dj-text: #a9a9b3;
+        --dj-muted: #b3b3bd;
+        --dj-line: #5c5e66;
+        --dj-accent: #8fd17d;
+        --dj-warn: #d8ad55;
+        --dj-blue: #7db7d8;
+        --dj-node-fill: #232425;
+        --dj-rule: rgba(255, 255, 255, 0.13);
+      }
+    }
+
+    [data-theme=dark] #{{ $id }} {
+      --dj-bg: #232425;
+      --dj-panel: #2c2d30;
+      --dj-panel-soft: rgba(255, 255, 255, 0.045);
+      --dj-text: #a9a9b3;
+      --dj-muted: #b3b3bd;
+      --dj-line: #5c5e66;
+      --dj-accent: #8fd17d;
+      --dj-warn: #d8ad55;
+      --dj-blue: #7db7d8;
+      --dj-node-fill: #232425;
+      --dj-rule: rgba(255, 255, 255, 0.13);
+    }
+
+    [data-theme=light] #{{ $id }} {
+      --dj-bg: #fff;
+      --dj-panel: #f4f4f4;
+      --dj-panel-soft: rgba(0, 0, 0, 0.035);
+      --dj-text: #222;
+      --dj-muted: #666;
+      --dj-line: #b8b8b8;
+      --dj-accent: #2f7d46;
+      --dj-warn: #b47a00;
+      --dj-blue: #1f6f9f;
+      --dj-node-fill: #fff;
+      --dj-rule: rgba(0, 0, 0, 0.12);
+    }
+
+    #{{ $id }} * { box-sizing: border-box; }
+
+    #{{ $id }} .dj-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(22rem, 0.75fr);
+      gap: 1rem;
+      padding: 1rem;
+      max-width: 1440px;
+      margin: 0 auto;
+    }
+
+    #{{ $id }} .dj-stage,
+    #{{ $id }} .dj-debug-panel,
+    #{{ $id }} .dj-controls {
+      background: transparent;
+    }
+
+    #{{ $id }} .dj-stage { padding: 0.75rem; }
+
+    #{{ $id }} .dj-left {
+      display: grid;
+      gap: 1rem;
+      align-content: start;
+    }
+
+    #{{ $id }} svg {
+      display: block;
+      width: 100%;
+      min-height: 25rem;
+    }
+
+    #{{ $id }} .dj-edge-line {
+      stroke: var(--dj-line);
+      stroke-width: 3;
+      transition: stroke 160ms ease, stroke-width 160ms ease, opacity 160ms ease;
+    }
+
+    #{{ $id }} .dj-edge-label {
+      fill: var(--dj-text);
+      font-size: 14px;
+      font-weight: 800;
+      paint-order: stroke;
+      stroke: var(--dj-bg);
+      stroke-width: 4px;
+      stroke-linejoin: round;
+    }
+
+    #{{ $id }} .dj-node circle {
+      fill: var(--dj-node-fill);
+      stroke: var(--dj-rule);
+      stroke-width: 3;
+      transition: fill 160ms ease, stroke 160ms ease, filter 160ms ease;
+    }
+
+    #{{ $id }} .dj-node text {
+      fill: var(--dj-text);
+      font-size: 18px;
+      font-weight: 900;
+      text-anchor: middle;
+      dominant-baseline: central;
+      pointer-events: none;
+    }
+
+    #{{ $id }} .dj-node.visited circle { fill: var(--dj-panel-soft); stroke: var(--dj-accent); }
+    #{{ $id }} .dj-node.current circle { fill: var(--dj-panel-soft); stroke: var(--dj-warn); filter: none; }
+    #{{ $id }} .dj-node.neighbor circle { fill: var(--dj-panel-soft); stroke: var(--dj-blue); filter: none; }
+    #{{ $id }} .dj-node.start circle { stroke-width: 5; }
+    #{{ $id }} .dj-edge-line.active { stroke: var(--dj-blue); stroke-width: 6; }
+    #{{ $id }} .dj-edge-line.path { stroke: var(--dj-accent); stroke-width: 5; }
+
+    #{{ $id }} .dj-side {
+      display: grid;
+      gap: 1rem;
+    }
+
+    #{{ $id }} .dj-debug-panel { padding: 1rem; }
+
+    #{{ $id }} .dj-code-panel {
+      background: transparent;
+      overflow: hidden;
+    }
+
+    #{{ $id }} .dj-code-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin: 0;
+      padding: 0.75rem 1rem;
+      color: var(--dj-muted);
+      border-bottom: 1px solid var(--dj-rule);
+      background: transparent;
+      font-size: 0.78rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    #{{ $id }} .dj-code {
+      margin: 0;
+      padding: 0.65rem 0;
+      overflow-x: auto;
+      background: transparent;
+      color: var(--dj-muted);
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
+
+    #{{ $id }} .dj-code code {
+      background: transparent;
+      color: inherit;
+    }
+
+    #{{ $id }} .dj-code-line {
+      display: grid;
+      grid-template-columns: 2.25rem minmax(28rem, 1fr);
+      gap: 0.75rem;
+      padding: 0.12rem 0.9rem;
+      border-left: 4px solid transparent;
+      white-space: pre;
+    }
+
+    #{{ $id }} .dj-code-line span:first-child {
+      color: var(--dj-muted);
+      opacity: 0.55;
+      text-align: right;
+      user-select: none;
+    }
+
+    #{{ $id }} .dj-code-line.active {
+      color: var(--dj-text);
+      border-left-color: var(--dj-warn);
+      background: var(--dj-panel-soft);
+      box-shadow: none;
+    }
+
+    #{{ $id }} .dj-panel-title {
+      margin: 0 0 0.75rem;
+      color: var(--dj-muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    #{{ $id }} .dj-vars {
+      display: grid;
+      gap: 0.45rem;
+      margin: 0;
+    }
+
+    #{{ $id }} .dj-var {
+      display: grid;
+      grid-template-columns: 7.5rem minmax(0, 1fr);
+      gap: 0.5rem;
+      padding: 0.5rem 0.6rem;
+      border-radius: 0;
+      background: transparent;
+      color: var(--dj-muted);
+      font-size: 0.82rem;
+    }
+
+    #{{ $id }} .dj-var dt { color: var(--dj-text); }
+    #{{ $id }} .dj-var dd { margin: 0; overflow-wrap: anywhere; }
+
+    #{{ $id }} .dj-controls {
+      display: grid;
+      gap: 0.75rem;
+      padding: 1rem;
+    }
+
+    #{{ $id }} .dj-button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    #{{ $id }} button {
+      cursor: pointer;
+      border: 1px solid var(--dj-rule);
+      border-radius: 6px;
+      padding: 0.6rem 0.8rem;
+      color: var(--dj-text);
+      background: transparent;
+      font-weight: 800;
+      transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+    }
+
+    #{{ $id }} button:hover:not(:disabled) {
+      transform: translateY(-1px);
+      border-color: var(--dj-accent);
+    }
+
+    #{{ $id }} button:disabled {
+      cursor: not-allowed;
+      opacity: 0.4;
+    }
+
+    #{{ $id }} .dj-primary {
+      color: var(--dj-bg);
+      border-color: var(--dj-accent);
+      background: var(--dj-accent);
+    }
+
+    #{{ $id }} .dj-range {
+      width: 100%;
+      accent-color: var(--dj-accent);
+    }
+
+    #{{ $id }} .dj-dist-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-top: 0.25rem;
+    }
+
+    #{{ $id }} .dj-dist-title {
+      margin-right: 0.25rem;
+      color: var(--dj-muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    #{{ $id }} .dj-dist-pill {
+      display: inline-flex;
+      gap: 0.35rem;
+      align-items: baseline;
+      padding: 0.2rem 0.45rem;
+      border-left: 3px solid transparent;
+      background: var(--dj-panel-soft);
+      font-size: 0.82rem;
+    }
+
+    #{{ $id }} .dj-dist-pill.best { color: var(--dj-accent); }
+    #{{ $id }} .dj-dist-pill.changed { color: var(--dj-warn); }
+    #{{ $id }} .dj-dist-pill.current { border-left-color: var(--dj-warn); }
+    #{{ $id }} .dj-dist-node { font-weight: 900; }
+
+    @media (max-width: 760px) {
+      #{{ $id }} .dj-body { display: block; }
+      #{{ $id }} .dj-side { margin-top: 1rem; }
+      #{{ $id }} .dj-controls { margin-top: 1rem; }
+      #{{ $id }} .dj-var { grid-template-columns: 1fr; }
+      #{{ $id }} svg { min-height: 20rem; }
+    }
+  </style>
+
+  <div class="dj-body">
+    <div class="dj-left">
+      <div class="dj-stage">
+        <svg viewBox="0 0 720 430" role="img" aria-label="Weighted graph used by the Dijkstra debugger">
+          <g data-edges></g>
+          <g data-nodes></g>
+        </svg>
+      </div>
+
+      <div class="dj-controls">
+        <div class="dj-button-row">
+          <button type="button" data-prev>Prev</button>
+          <button type="button" class="dj-primary" data-next>Next</button>
+          <button type="button" data-reset>Reset</button>
+        </div>
+        <input class="dj-range" type="range" min="0" value="0" data-range aria-label="Select Dijkstra debugger step">
+        <div class="dj-dist-strip" data-dist-strip>
+          <span class="dj-dist-title">dist[node]</span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="dj-side">
+      <div class="dj-code-panel">
+        <h3 class="dj-code-title">Executing now <span data-code-line></span></h3>
+        <pre class="dj-code" data-code></pre>
+      </div>
+
+      <div class="dj-debug-panel">
+        <h3 class="dj-panel-title">Debug variables</h3>
+        <dl class="dj-vars" data-vars></dl>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    (() => {
+      const root = document.getElementById('{{ $id }}');
+      if (!root) return;
+
+      const codeLines = [
+        'dist = {node: inf for node in graph}',
+        'prev = {node: null for node in graph}',
+        'visited = set()',
+        'dist[start] = 0',
+        'pq = [(0, start)]',
+        'while pq:',
+        '    current_dist, current = heappop(pq)',
+        '    if current in visited: continue',
+        '    visited.add(current)',
+        '    if current == target: break',
+        '    for neighbor, weight in graph[current]:',
+        '        if neighbor in visited: continue',
+        '        alt = dist[current] + weight',
+        '        if alt < dist[neighbor]:',
+        '            dist[neighbor] = alt',
+        '            prev[neighbor] = current',
+        '            heappush(pq, (alt, neighbor))',
+        'return dist, prev'
+      ];
+
+      const nodes = {
+        A: { x: 80, y: 210 },
+        B: { x: 220, y: 90 },
+        C: { x: 230, y: 320 },
+        D: { x: 410, y: 130 },
+        E: { x: 430, y: 310 },
+        F: { x: 620, y: 210 }
+      };
+
+      const edges = [
+        ['A', 'B', 4], ['A', 'C', 2], ['B', 'C', 1], ['B', 'D', 5],
+        ['C', 'D', 8], ['C', 'E', 10], ['D', 'E', 2], ['D', 'F', 6], ['E', 'F', 3]
+      ];
+      const names = Object.keys(nodes);
+      const end = 'F';
+      const edgeKey = (a, b) => [a, b].sort().join('-');
+      const format = (value) => value === Infinity ? 'inf' : String(value);
+      const escapeHtml = (value) => value.replace(/[&<>"]/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;'
+      })[char]);
+
+      const graph = names.reduce((acc, name) => ({ ...acc, [name]: [] }), {});
+      edges.forEach(([a, b, weight]) => {
+        graph[a].push({ to: b, weight });
+        graph[b].push({ to: a, weight });
+      });
+
+      const snapshot = (state, extra) => ({
+        dist: { ...state.dist },
+        prev: { ...state.prev },
+        visited: [...state.visited],
+        pq: state.pq.map((item) => ({ ...item })).sort((a, b) => a.distance - b.distance || a.node.localeCompare(b.node)),
+        current: state.current || null,
+        neighbor: null,
+        activeEdge: null,
+        alt: null,
+        changedNode: null,
+        pathEdges: [],
+        line: 1,
+        ...extra
+      });
+
+      function buildSteps() {
+        const state = {
+          dist: Object.fromEntries(names.map((name) => [name, Infinity])),
+          prev: Object.fromEntries(names.map((name) => [name, null])),
+          visited: [],
+          pq: [],
+          current: null
+        };
+        const steps = [];
+        state.dist.A = 0;
+        state.pq.push({ node: 'A', distance: 0 });
+        steps.push(snapshot(state, { line: 4, label: 'Initialize distances. A starts at 0; every other node is infinity.' }));
+
+        while (state.pq.length > 0) {
+          state.pq.sort((a, b) => a.distance - b.distance || a.node.localeCompare(b.node));
+          const item = state.pq.shift();
+          if (state.visited.includes(item.node)) continue;
+          state.current = item.node;
+          steps.push(snapshot(state, { line: 7, label: `Pop ${item.node} from pq because it has the smallest tentative distance (${item.distance}).` }));
+
+          state.visited.push(item.node);
+          steps.push(snapshot(state, { line: 9, label: `Mark ${item.node} as visited. Its shortest distance is now fixed.` }));
+
+          if (item.node === end) break;
+
+          graph[item.node].forEach(({ to, weight }) => {
+            if (state.visited.includes(to)) {
+              steps.push(snapshot(state, {
+                line: 12,
+                neighbor: to,
+                activeEdge: edgeKey(item.node, to),
+                label: `Skip ${to}. It is already visited, so we do not relax edge ${item.node}-${to}.`
+              }));
+              return;
+            }
+
+            const alt = state.dist[item.node] + weight;
+            steps.push(snapshot(state, {
+              line: 13,
+              neighbor: to,
+              activeEdge: edgeKey(item.node, to),
+              alt,
+              label: `Inspect ${item.node}-${to}. Candidate distance: dist[${item.node}] + ${weight} = ${alt}.`
+            }));
+
+            if (alt < state.dist[to]) {
+              state.dist[to] = alt;
+              state.prev[to] = item.node;
+              state.pq.push({ node: to, distance: alt });
+              steps.push(snapshot(state, {
+                line: 15,
+                neighbor: to,
+                activeEdge: edgeKey(item.node, to),
+                alt,
+                changedNode: to,
+                label: `Update ${to}: dist[${to}] becomes ${alt}, prev[${to}] becomes ${item.node}, and ${to} enters pq.`
+              }));
+            } else {
+              steps.push(snapshot(state, {
+                line: 14,
+                neighbor: to,
+                activeEdge: edgeKey(item.node, to),
+                alt,
+                label: `No update for ${to}. Candidate ${alt} is not better than current ${format(state.dist[to])}.`
+              }));
+            }
+          });
+        }
+
+        const pathEdges = [];
+        for (let node = end; state.prev[node]; node = state.prev[node]) {
+          pathEdges.push(edgeKey(node, state.prev[node]));
+        }
+        steps.push(snapshot(state, {
+          line: 18,
+          current: end,
+          pathEdges,
+          label: `Done. The shortest path to F costs ${state.dist.F}: A -> C -> B -> D -> E -> F.`
+        }));
+        return steps;
+      }
+
+      const steps = buildSteps();
+      let index = 0;
+
+      const edgeLayer = root.querySelector('[data-edges]');
+      const nodeLayer = root.querySelector('[data-nodes]');
+      const code = root.querySelector('[data-code]');
+      const codeLine = root.querySelector('[data-code-line]');
+      const vars = root.querySelector('[data-vars]');
+      const distStrip = root.querySelector('[data-dist-strip]');
+      const range = root.querySelector('[data-range]');
+      const prevButton = root.querySelector('[data-prev]');
+      const nextButton = root.querySelector('[data-next]');
+      const resetButton = root.querySelector('[data-reset]');
+      range.max = String(steps.length - 1);
+
+      code.innerHTML = codeLines.map((line, position) => `<code class="dj-code-line" data-code-row="${position + 1}"><span>${position + 1}</span><span>${escapeHtml(line)}</span></code>`).join('');
+
+      edgeLayer.innerHTML = edges.map(([a, b, weight]) => {
+        const from = nodes[a];
+        const to = nodes[b];
+        const mx = (from.x + to.x) / 2;
+        const my = (from.y + to.y) / 2;
+        return `<g data-edge="${edgeKey(a, b)}"><line class="dj-edge-line" x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"></line><text class="dj-edge-label" x="${mx}" y="${my - 8}">${weight}</text></g>`;
+      }).join('');
+
+      nodeLayer.innerHTML = names.map((name) => {
+        const node = nodes[name];
+        return `<g class="dj-node" data-node="${name}" transform="translate(${node.x} ${node.y})"><circle r="28"></circle><text>${name}</text></g>`;
+      }).join('');
+
+      function render() {
+        const step = steps[index];
+        root.querySelectorAll('[data-node]').forEach((el) => {
+          const name = el.dataset.node;
+          el.classList.toggle('visited', step.visited.includes(name));
+          el.classList.toggle('current', step.current === name);
+          el.classList.toggle('neighbor', step.neighbor === name);
+          el.classList.toggle('start', name === 'A');
+        });
+
+        root.querySelectorAll('[data-edge]').forEach((el) => {
+          const line = el.querySelector('line');
+          line.classList.toggle('active', step.activeEdge === el.dataset.edge);
+          line.classList.toggle('path', step.pathEdges.includes(el.dataset.edge));
+        });
+
+        root.querySelectorAll('[data-code-row]').forEach((el) => {
+          el.classList.toggle('active', Number(el.dataset.codeRow) === step.line);
+        });
+        codeLine.textContent = `line ${step.line}`;
+
+        vars.innerHTML = [
+          ['current', step.current || 'null'],
+          ['neighbor', step.neighbor || 'null'],
+          ['edgeWeight', step.activeEdge ? edges.find(([a, b]) => edgeKey(a, b) === step.activeEdge)[2] : 'null'],
+          ['alt', step.alt === null ? 'null' : format(step.alt)],
+          ['visited', `[${step.visited.join(', ')}]`],
+          ['pq', `[${step.pq.map((item) => `(${item.node}, ${item.distance})`).join(', ')}]`],
+          ['prev', `{ ${names.map((name) => `${name}: ${step.prev[name] || 'null'}`).join(', ')} }`]
+        ].map(([key, value]) => `<div class="dj-var"><dt>${key}</dt><dd>${value}</dd></div>`).join('');
+
+        distStrip.innerHTML = '<span class="dj-dist-title">dist[node]</span>' + names.map((name) => {
+          const classes = ['dj-dist-pill'];
+          if (name === step.changedNode) classes.push('changed');
+          if (step.visited.includes(name)) classes.push('best');
+          if (step.current === name) classes.push('current');
+          return `<span class="${classes.join(' ')}"><span class="dj-dist-node">${name}</span><span>${format(step.dist[name])}</span></span>`;
+        }).join('');
+
+        range.value = String(index);
+        prevButton.disabled = index === 0;
+        nextButton.disabled = index === steps.length - 1;
+      }
+
+      prevButton.addEventListener('click', () => { index = Math.max(0, index - 1); render(); });
+      nextButton.addEventListener('click', () => { index = Math.min(steps.length - 1, index + 1); render(); });
+      resetButton.addEventListener('click', () => { index = 0; render(); });
+      range.addEventListener('input', () => { index = Number(range.value); render(); });
+
+      render();
+    })();
+  </script>
+</section>
