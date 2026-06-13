@@ -13,11 +13,14 @@
       --dj-blue: #1f6f9f;
       --dj-node-fill: #fff;
       --dj-rule: rgba(0, 0, 0, 0.12);
+      --dj-width: min(920px, calc(100vw - 2rem));
       margin: 2rem 0;
-      margin-left: calc(50% - 50vw);
-      width: 100vw;
+      width: var(--dj-width);
+      max-width: calc(100vw - 2rem);
+      margin-left: calc((100% - var(--dj-width)) / 2);
       color: var(--dj-text);
       background: transparent;
+      overflow-x: hidden;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     }
 
@@ -69,10 +72,10 @@
 
     #{{ $id }} .dj-body {
       display: grid;
-      grid-template-columns: minmax(34rem, 1fr) minmax(24rem, 0.55fr);
-      gap: 2rem;
-      padding: 0 1.5rem;
-      max-width: 1320px;
+      grid-template-columns: 1fr;
+      gap: 1.25rem;
+      padding: 0;
+      max-width: none;
       margin: 0 auto;
     }
 
@@ -111,6 +114,15 @@
       display: grid;
       gap: 0.75rem;
       align-content: start;
+      min-width: 0;
+    }
+
+    #{{ $id }} .dj-stage,
+    #{{ $id }} .dj-side,
+    #{{ $id }} .dj-code-panel,
+    #{{ $id }} .dj-debug-panel,
+    #{{ $id }} .dj-controls {
+      min-width: 0;
     }
 
     #{{ $id }} svg {
@@ -161,12 +173,17 @@
 
     #{{ $id }} .dj-side {
       display: grid;
-      gap: 1rem;
+      grid-template-columns: minmax(0, 1fr) minmax(20rem, 0.75fr);
+      gap: 2rem;
+      align-items: start;
     }
 
     #{{ $id }} .dj-debug-panel {
-      grid-column: 1 / -1;
       padding: 0;
+    }
+
+    #{{ $id }} .dj-debug-panel[open] .dj-panel-title {
+      margin-bottom: 0.75rem;
     }
 
     #{{ $id }} .dj-debug-panel summary {
@@ -199,6 +216,7 @@
       border-bottom: 1px solid var(--dj-rule);
       background: transparent;
       font-size: 0.78rem;
+      line-height: 1;
       letter-spacing: 0.14em;
       text-transform: uppercase;
     }
@@ -207,6 +225,7 @@
       margin: 0;
       padding: 0.65rem 0;
       overflow-x: auto;
+      max-width: 100%;
       background: transparent;
       color: var(--dj-muted);
       font-size: 0.78rem;
@@ -220,7 +239,7 @@
 
     #{{ $id }} .dj-code-line {
       display: grid;
-      grid-template-columns: 2.25rem minmax(28rem, 1fr);
+      grid-template-columns: 2.25rem max-content;
       gap: 0.75rem;
       padding: 0.12rem 0.9rem;
       border-left: 4px solid transparent;
@@ -242,9 +261,13 @@
     }
 
     #{{ $id }} .dj-panel-title {
-      margin: 0 0 0.75rem;
+      display: flex;
+      align-items: flex-start;
+      margin: 0;
+      padding: 0.75rem 0;
       color: var(--dj-muted);
       font-size: 0.78rem;
+      line-height: 1;
       letter-spacing: 0.14em;
       text-transform: uppercase;
     }
@@ -300,7 +323,6 @@
     }
 
     #{{ $id }} button:hover:not(:disabled) {
-      transform: translateY(-1px);
       border-color: var(--dj-accent);
     }
 
@@ -353,8 +375,17 @@
     #{{ $id }} .dj-dist-node { font-weight: 900; }
 
     @media (max-width: 760px) {
+      #{{ $id }} {
+        width: 100%;
+        max-width: 100%;
+        margin-left: 0;
+      }
+
       #{{ $id }} .dj-body { display: block; }
-      #{{ $id }} .dj-side { margin-top: 1rem; }
+      #{{ $id }} .dj-side {
+        grid-template-columns: 1fr;
+        margin-top: 1rem;
+      }
       #{{ $id }} .dj-debug-panel { margin-top: 1rem; }
       #{{ $id }} .dj-controls {
         display: grid;
@@ -403,17 +434,17 @@
       </div>
     </div>
 
-    <aside class="dj-side">
+    <div class="dj-side">
       <div class="dj-code-panel">
         <h3 class="dj-code-title">Executing now <span data-code-line></span></h3>
         <pre class="dj-code" data-code></pre>
       </div>
-    </aside>
 
-    <details class="dj-debug-panel">
-      <summary class="dj-panel-title">Debug variables</summary>
-      <dl class="dj-vars" data-vars></dl>
-    </details>
+      <details class="dj-debug-panel">
+        <summary class="dj-panel-title">Debug variables</summary>
+        <dl class="dj-vars" data-vars></dl>
+      </details>
+    </div>
   </div>
 
   <script>
