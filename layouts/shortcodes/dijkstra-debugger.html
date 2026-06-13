@@ -84,6 +84,29 @@
 
     #{{ $id }} .dj-stage { padding: 0; }
 
+    #{{ $id }} .dj-graphs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+
+    #{{ $id }} .dj-graph-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin: 0 0 0.35rem;
+      color: var(--dj-muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    #{{ $id }} .dj-graph-status {
+      color: var(--dj-text);
+      letter-spacing: normal;
+      text-transform: none;
+    }
+
     #{{ $id }} .dj-left {
       display: grid;
       gap: 0.75rem;
@@ -145,6 +168,21 @@
       grid-column: 1 / -1;
       padding: 0;
     }
+
+    #{{ $id }} .dj-debug-panel summary {
+      cursor: pointer;
+      list-style: none;
+    }
+
+    #{{ $id }} .dj-debug-panel summary::-webkit-details-marker { display: none; }
+
+    #{{ $id }} .dj-debug-panel summary::after {
+      content: '+';
+      margin-left: 0.5rem;
+      color: var(--dj-text);
+    }
+
+    #{{ $id }} .dj-debug-panel[open] summary::after { content: '-'; }
 
     #{{ $id }} .dj-code-panel {
       background: transparent;
@@ -288,7 +326,7 @@
       flex-wrap: wrap;
       gap: 0.5rem;
       align-items: center;
-      margin-top: 0.25rem;
+      margin-top: 0.15rem;
     }
 
     #{{ $id }} .dj-dist-title {
@@ -324,6 +362,7 @@
         margin-bottom: 1rem;
       }
       #{{ $id }} .dj-var { grid-template-columns: 1fr; }
+      #{{ $id }} .dj-graphs { grid-template-columns: 1fr; }
       #{{ $id }} svg { min-height: 20rem; }
     }
   </style>
@@ -337,16 +376,30 @@
           <button type="button" data-reset>Reset</button>
         </div>
         <input class="dj-range" type="range" min="0" value="0" data-range aria-label="Select Dijkstra debugger step">
-        <div class="dj-dist-strip" data-dist-strip>
-          <span class="dj-dist-title">dist[node]</span>
+        <div class="dj-dist-strip" data-dist-strip="dijkstra">
+          <span class="dj-dist-title">dijkstra dist[node]</span>
+        </div>
+        <div class="dj-dist-strip" data-dist-strip="spfa">
+          <span class="dj-dist-title">spfa dist[node]</span>
         </div>
       </div>
 
-      <div class="dj-stage">
-        <svg viewBox="0 0 720 430" role="img" aria-label="Weighted graph used by the Dijkstra debugger">
-          <g data-edges></g>
-          <g data-nodes></g>
-        </svg>
+      <div class="dj-graphs">
+        <div class="dj-stage" data-graph="dijkstra">
+          <h3 class="dj-graph-title">Dijkstra <span class="dj-graph-status" data-status="dijkstra"></span></h3>
+          <svg viewBox="0 0 720 430" role="img" aria-label="Weighted graph used by the Dijkstra debugger">
+            <g data-edges></g>
+            <g data-nodes></g>
+          </svg>
+        </div>
+
+        <div class="dj-stage" data-graph="spfa">
+          <h3 class="dj-graph-title">SPFA <span class="dj-graph-status" data-status="spfa"></span></h3>
+          <svg viewBox="0 0 720 430" role="img" aria-label="Weighted graph used by the SPFA comparison">
+            <g data-edges></g>
+            <g data-nodes></g>
+          </svg>
+        </div>
       </div>
     </div>
 
@@ -357,10 +410,10 @@
       </div>
     </aside>
 
-    <div class="dj-debug-panel">
-      <h3 class="dj-panel-title">Debug variables</h3>
+    <details class="dj-debug-panel">
+      <summary class="dj-panel-title">Debug variables</summary>
       <dl class="dj-vars" data-vars></dl>
-    </div>
+    </details>
   </div>
 
   <script>
@@ -431,6 +484,20 @@
         changedNode: null,
         pathEdges: [],
         line: 1,
+        ...extra
+      });
+
+      const spfaSnapshot = (state, extra) => ({
+        dist: { ...state.dist },
+        prev: { ...state.prev },
+        visited: [...state.seen],
+        pq: state.queue.map((node) => ({ node, distance: state.dist[node] })),
+        current: state.current || null,
+        neighbor: null,
+        activeEdge: null,
+        alt: null,
+        changedNode: null,
+        pathEdges: [],
         ...extra
       });
 
@@ -516,39 +583,122 @@
         return steps;
       }
 
+      function buildSpfaSteps() {
+        const state = {
+          dist: Object.fromEntries(names.map((name) => [name, Infinity])),
+          prev: Object.fromEntries(names.map((name) => [name, null])),
+          queue: [],
+          inQueue: new Set(),
+          seen: [],
+          current: null
+        };
+        const steps = [];
+        state.dist.A = 0;
+        state.queue.push('A');
+        state.inQueue.add('A');
+        steps.push(spfaSnapshot(state, { label: 'SPFA starts with A in a FIFO queue.' }));
+
+        while (state.queue.length > 0) {
+          const current = state.queue.shift();
+          state.inQueue.delete(current);
+          state.current = current;
+          if (!state.seen.includes(current)) state.seen.push(current);
+          steps.push(spfaSnapshot(state, { label: `SPFA dequeues ${current}.` }));
+
+          graph[current].forEach(({ to, weight }) => {
+            const alt = state.dist[current] + weight;
+            steps.push(spfaSnapshot(state, {
+              neighbor: to,
+              activeEdge: edgeKey(current, to),
+              alt,
+              label: `SPFA checks ${current}-${to}.`
+            }));
+
+            if (alt < state.dist[to]) {
+              state.dist[to] = alt;
+              state.prev[to] = current;
+              steps.push(spfaSnapshot(state, {
+                neighbor: to,
+                activeEdge: edgeKey(current, to),
+                alt,
+                changedNode: to,
+                label: `SPFA relaxes ${to}.`
+              }));
+
+              if (!state.inQueue.has(to)) {
+                state.queue.push(to);
+                state.inQueue.add(to);
+                steps.push(spfaSnapshot(state, {
+                  neighbor: to,
+                  activeEdge: edgeKey(current, to),
+                  alt,
+                  changedNode: to,
+                  label: `SPFA queues ${to} for another pass.`
+                }));
+              }
+            }
+          });
+        }
+
+        const pathEdges = [];
+        for (let node = end; state.prev[node]; node = state.prev[node]) {
+          pathEdges.push(edgeKey(node, state.prev[node]));
+        }
+        steps.push(spfaSnapshot(state, {
+          current: end,
+          pathEdges,
+          label: 'SPFA finishes after its queue becomes empty.'
+        }));
+        return steps;
+      }
+
       const steps = buildSteps();
+      const spfaSteps = buildSpfaSteps();
+      const totalSteps = Math.max(steps.length, spfaSteps.length);
       let index = 0;
 
-      const edgeLayer = root.querySelector('[data-edges]');
-      const nodeLayer = root.querySelector('[data-nodes]');
+      const graphs = {
+        dijkstra: root.querySelector('[data-graph="dijkstra"]'),
+        spfa: root.querySelector('[data-graph="spfa"]')
+      };
+      const statuses = {
+        dijkstra: root.querySelector('[data-status="dijkstra"]'),
+        spfa: root.querySelector('[data-status="spfa"]')
+      };
       const code = root.querySelector('[data-code]');
       const codeLine = root.querySelector('[data-code-line]');
       const vars = root.querySelector('[data-vars]');
-      const distStrip = root.querySelector('[data-dist-strip]');
+      const distStrips = {
+        dijkstra: root.querySelector('[data-dist-strip="dijkstra"]'),
+        spfa: root.querySelector('[data-dist-strip="spfa"]')
+      };
       const range = root.querySelector('[data-range]');
       const prevButton = root.querySelector('[data-prev]');
       const nextButton = root.querySelector('[data-next]');
       const resetButton = root.querySelector('[data-reset]');
-      range.max = String(steps.length - 1);
+      range.max = String(totalSteps - 1);
 
       code.innerHTML = codeLines.map((line, position) => `<code class="dj-code-line" data-code-row="${position + 1}"><span>${position + 1}</span><span>${escapeHtml(line)}</span></code>`).join('');
 
-      edgeLayer.innerHTML = edges.map(([a, b, weight]) => {
-        const from = nodes[a];
-        const to = nodes[b];
-        const mx = (from.x + to.x) / 2;
-        const my = (from.y + to.y) / 2;
-        return `<g data-edge="${edgeKey(a, b)}"><line class="dj-edge-line" x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"></line><text class="dj-edge-label" x="${mx}" y="${my - 8}">${weight}</text></g>`;
-      }).join('');
+      Object.values(graphs).forEach((graphRoot) => {
+        const edgeLayer = graphRoot.querySelector('[data-edges]');
+        const nodeLayer = graphRoot.querySelector('[data-nodes]');
+        edgeLayer.innerHTML = edges.map(([a, b, weight]) => {
+          const from = nodes[a];
+          const to = nodes[b];
+          const mx = (from.x + to.x) / 2;
+          const my = (from.y + to.y) / 2;
+          return `<g data-edge="${edgeKey(a, b)}"><line class="dj-edge-line" x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"></line><text class="dj-edge-label" x="${mx}" y="${my - 8}">${weight}</text></g>`;
+        }).join('');
 
-      nodeLayer.innerHTML = names.map((name) => {
-        const node = nodes[name];
-        return `<g class="dj-node" data-node="${name}" transform="translate(${node.x} ${node.y})"><circle r="28"></circle><text>${name}</text></g>`;
-      }).join('');
+        nodeLayer.innerHTML = names.map((name) => {
+          const node = nodes[name];
+          return `<g class="dj-node" data-node="${name}" transform="translate(${node.x} ${node.y})"><circle r="28"></circle><text>${name}</text></g>`;
+        }).join('');
+      });
 
-      function render() {
-        const step = steps[index];
-        root.querySelectorAll('[data-node]').forEach((el) => {
+      function renderGraph(graphRoot, step) {
+        graphRoot.querySelectorAll('[data-node]').forEach((el) => {
           const name = el.dataset.node;
           el.classList.toggle('visited', step.visited.includes(name));
           el.classList.toggle('current', step.current === name);
@@ -556,11 +706,32 @@
           el.classList.toggle('start', name === 'A');
         });
 
-        root.querySelectorAll('[data-edge]').forEach((el) => {
+        graphRoot.querySelectorAll('[data-edge]').forEach((el) => {
           const line = el.querySelector('line');
           line.classList.toggle('active', step.activeEdge === el.dataset.edge);
           line.classList.toggle('path', step.pathEdges.includes(el.dataset.edge));
         });
+      }
+
+      function renderDistStrip(strip, label, step) {
+        strip.innerHTML = `<span class="dj-dist-title">${label} dist[node]</span>` + names.map((name) => {
+          const classes = ['dj-dist-pill'];
+          if (name === step.changedNode) classes.push('changed');
+          if (step.visited.includes(name)) classes.push('best');
+          if (step.current === name) classes.push('current');
+          return `<span class="${classes.join(' ')}"><span class="dj-dist-node">${name}</span><span>${format(step.dist[name])}</span></span>`;
+        }).join('');
+      }
+
+      function render() {
+        const dijkstraFinished = index >= steps.length - 1;
+        const spfaFinished = index >= spfaSteps.length - 1;
+        const step = steps[Math.min(index, steps.length - 1)];
+        const spfaStep = spfaSteps[Math.min(index, spfaSteps.length - 1)];
+        renderGraph(graphs.dijkstra, step);
+        renderGraph(graphs.spfa, spfaStep);
+        statuses.dijkstra.textContent = dijkstraFinished ? 'finished' : 'running';
+        statuses.spfa.textContent = spfaFinished ? 'finished' : 'running';
 
         root.querySelectorAll('[data-code-row]').forEach((el) => {
           el.classList.toggle('active', Number(el.dataset.codeRow) === step.line);
@@ -577,21 +748,16 @@
           ['prev', `{ ${names.map((name) => `${name}: ${step.prev[name] || 'null'}`).join(', ')} }`]
         ].map(([key, value]) => `<div class="dj-var"><dt>${key}</dt><dd>${value}</dd></div>`).join('');
 
-        distStrip.innerHTML = '<span class="dj-dist-title">dist[node]</span>' + names.map((name) => {
-          const classes = ['dj-dist-pill'];
-          if (name === step.changedNode) classes.push('changed');
-          if (step.visited.includes(name)) classes.push('best');
-          if (step.current === name) classes.push('current');
-          return `<span class="${classes.join(' ')}"><span class="dj-dist-node">${name}</span><span>${format(step.dist[name])}</span></span>`;
-        }).join('');
+        renderDistStrip(distStrips.dijkstra, 'dijkstra', step);
+        renderDistStrip(distStrips.spfa, 'spfa', spfaStep);
 
         range.value = String(index);
         prevButton.disabled = index === 0;
-        nextButton.disabled = index === steps.length - 1;
+        nextButton.disabled = index === totalSteps - 1;
       }
 
       prevButton.addEventListener('click', () => { index = Math.max(0, index - 1); render(); });
-      nextButton.addEventListener('click', () => { index = Math.min(steps.length - 1, index + 1); render(); });
+      nextButton.addEventListener('click', () => { index = Math.min(totalSteps - 1, index + 1); render(); });
       resetButton.addEventListener('click', () => { index = 0; render(); });
       range.addEventListener('input', () => { index = Number(range.value); render(); });
 

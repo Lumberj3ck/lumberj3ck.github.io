@@ -1,5 +1,5 @@
 ---
-title: "Dijkstra Debugger"
+title: "Dijkstra and SPFA visualisation"
 date: 2026-06-12T12:00:00+02:00
 draft: false
 toc: false
@@ -10,7 +10,8 @@ tags:
 
 Dijkstra is easier to understand when you can see the variables move.
 
-The key idea is simple: always expand the unvisited node with the smallest known distance. When we inspect an edge, we calculate a candidate distance. If it is better than the current value, we update `dist`, remember the previous node in `prev`, and push the node into the priority queue.
+The thing is that djikstra faster because it figures improvements faster and when we find improvements it means that probable worse paths which could have been traveled through the node are skipped entirely, while SPFA still goes through those dead paths (they anyways will be updated).
+This is visible on representation bellow, where SPFA first follows node **B** neighbors, we vaste time on this one because all of that neighbors paths will be improved, but it is not yet best we would have to update them, however they have already been added into the queue, luckily for us it is only node **D**, but if graph was large enough we might have added more nodes and you can see where this goes. From that node **D** we updated paths to other neighbors, but again they are not final paths. And only now after all of that computations we come to node **C** which actually gives us improvement on neighbors, but we have to recalculate neighbors of **B** and **D** again, thus we add **B** into the queue again.
 
 Use the debugger below step by step and watch these variables:
 
@@ -23,15 +24,3 @@ Use the debugger below step by step and watch these variables:
 
 {{< dijkstra-debugger >}}
 
-The important moment is the relaxation check:
-
-```python
-alt = dist[current] + weight(current, neighbor)
-
-if alt < dist[neighbor]:
-    dist[neighbor] = alt
-    prev[neighbor] = current
-    push(priority_queue, (alt, neighbor))
-```
-
-Once a node is marked as visited, Dijkstra will not find a shorter route to it later. That works because all edge weights are non-negative, so the priority queue always gives us the next safest node to finalize.
