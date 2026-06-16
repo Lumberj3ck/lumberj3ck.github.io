@@ -8,7 +8,7 @@ tags:
   - algos
 ---
 
-Dijkstra is easier to understand when you can see the variables move.
+Dijkstra is easier to understand when you can watch the distances, queue, and visited set change step by step.
 Here is the implementation of SPFA:
 
 {{< highlight python >}}
@@ -29,12 +29,11 @@ def shortest_path(graph: list[list[tuple[int, int]]], a: int, b: int) -> int:
     return -1 if r == inf else r
 {{< / highlight >}}
 
-SPFA looks like a typical bfs except that we don't have cycles detection, we don't check whethere or not we visited current node, instead we check a distance to a node, if we update it we push node, if not we don't push it.
+SPFA looks similar to BFS: it keeps nodes in a queue and relaxes their outgoing edges. The difference is that we do not mark a node as permanently visited. Instead, we only care whether we found a better distance to that node. If the distance improves, we put the node back into the queue so its neighbors can be checked again.
 
-The thing is that djikstra faster because it figures improvements faster and when we find improvements it means that probable worse paths which could have been traveled through the node are skipped entirely, while SPFA still goes through those dead paths (they anyways will be updated).
-This is visible on representation bellow, where SPFA first follows node **B** neighbors, we vaste time on this one because all of that neighbors paths will be improved, but it is not yet best we would have to update them, however they have already been added into the queue, luckily for us it is only node **D**, but if graph was large enough we might have added more nodes and you can see where this goes. From that node **D** we updated paths to other neighbors, but again they are not final paths. And only now after all of that computations we come to node **C** which actually gives us improvement on neighbors, but we have to recalculate neighbors of **B** and **D** again, thus we add **B** into the queue again.
+The cost of this approach is repeated work. SPFA can process a node before its best distance is known. In the example below, SPFA follows **B** and adds its neighbors to the queue, even though those paths will later be improved through **C**. That means nodes like **D** may be processed once with a worse distance, then processed again after a better path is discovered.
 
-Also the thing to understand with djikstra algo that as soon as we pop from the priority queue, the value is final, it means that we visited all posible nodes and now priority queue, will return best result of path from all, thus we can move forward and use that node as a guaranteed best path.
+Dijkstra avoids much of this wasted work by always expanding the node with the smallest tentative distance first. When a node is popped from the priority queue, its shortest distance is final. At that point, we can safely use it to improve its neighbors without needing to revisit it later.
 
 Use the debugger below step by step and watch these variables:
 
@@ -46,4 +45,3 @@ Use the debugger below step by step and watch these variables:
 - `prev`: pointers used to rebuild the shortest path
 
 {{< dijkstra-debugger >}}
-
