@@ -8,8 +8,8 @@ draft = false
 
 Intern, AI/LLM Engineering (May 2026 - Present)
 
-- Built LLM-powered applications that delivered intelligent, scalable solutions for diverse business use cases.
-- Streamlined operations by optimizing processes and automating workflows with modern AI technologies.
+- Built an AI agent with LangChain to automate recurring internal workflows and common operational tasks.
+- Designed reusable multi-step agent workflows and components to support additional automation use cases.
 
 Working Student, Software Engineering (Feb 2025 - May 2026)
 
