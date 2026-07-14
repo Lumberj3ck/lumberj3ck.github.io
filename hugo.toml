@@ -1,4 +1,4 @@
-baseURL = 'https://lumberj3ck.site/'
+baseURL = 'https://lumberj3ck.github.io/'
 title = 'Alan Yuldashev'
 languageCode = 'en-us'
 PygmentsCodeFences = true
